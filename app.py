@@ -112,7 +112,7 @@ def draw_candlestick(hist_df):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis_rangeslider_visible=False,
-        xaxis=dict(showgrid=False, showticklabels=False),
+        xaxis=dict(showgrid=False, showticklabels=True),
         yaxis=dict(showgrid=False, showticklabels=False)
     )
     return fig
