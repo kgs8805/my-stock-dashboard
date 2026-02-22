@@ -54,7 +54,10 @@ st.markdown("""
 @st.cache_data(ttl=3600)  # 1시간 캐싱 (서버 부하 방지 및 속도 향상)
 def get_news(query, num=3):
     try:
-        encoded_query = urllib.parse.quote(query)
+        # 뉴스 검색어에 시간 제한(최근 7일) 추가 чтобы 최신 뉴스만 가져오게 함
+        search_query = f"{query} when:7d"
+        encoded_query = urllib.parse.quote(search_query)
+        # 검색결과를 날짜순(최신순)으로 정렬하려면 RSS URL 파라미터를 변경 (하지만 구글뉴스 RSS는 자동 관련도이므로 when 필터가 가장 확실함)
         url = f"https://news.google.com/rss/search?q={encoded_query}&hl=ko&gl=KR&ceid=KR:ko"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
