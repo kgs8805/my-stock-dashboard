@@ -41,8 +41,8 @@ st.markdown("""
         margin-bottom: 20px;
         border-top: 4px solid #475569;
     }
-    .profit { color: #ef4444; } /* 상승 빨강 */
-    .loss { color: #3b82f6; }   /* 하락 파랑 */
+    .profit { color: #ff4d4d !important; text-shadow: 0px 0px 10px rgba(255, 77, 77, 0.4); font-weight: 800; } /* 상승 빨강 */
+    .loss { color: #3b82f6 !important; text-shadow: 0px 0px 10px rgba(59, 130, 246, 0.4); font-weight: 800; }   /* 하락 파랑 */
     .news-title { color: #fbbf24; font-weight: bold; margin-bottom: 5px;}
     .news-link { color: #94a3b8 !important; text-decoration: none; }
     .news-link:hover { color: #60a5fa !important; text-decoration: underline; }
@@ -238,7 +238,7 @@ if kospi_data is not None and not kospi_data.empty:
         st.markdown(f"""
         <div class="market-box">
             <div class="market-title">KOSPI 종합</div>
-            <div class="market-val <span class="{k_color}">{k_curr:,.2f} ({k_sign}{k_pct:.2f}%)</span></div>
+            <div class="market-val"><span class="{k_color}">{k_curr:,.2f} ({k_sign}{k_pct:.2f}%)</span></div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -246,7 +246,7 @@ if kospi_data is not None and not kospi_data.empty:
          st.markdown(f"""
         <div class="market-box">
             <div class="market-title">KOSDAQ 종합</div>
-            <div class="market-val <span class="{q_color}">{q_curr:,.2f} ({q_sign}{q_pct:.2f}%)</span></div>
+            <div class="market-val"><span class="{q_color}">{q_curr:,.2f} ({q_sign}{q_pct:.2f}%)</span></div>
         </div>
         """, unsafe_allow_html=True)
 else:
