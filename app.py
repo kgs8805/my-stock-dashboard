@@ -298,7 +298,7 @@ if tickers_input:
             st.markdown(f"<div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; color: #cbd5e1; font-size: 0.95rem; display:inline-block;'><b>🤖 AI 단기 진단:</b> {trend_msg}</div>", unsafe_allow_html=True)
             
             # 미니 차트 삽입
-            st.plotly_chart(draw_candlestick(hist), use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(draw_candlestick(hist), width='stretch', config={'displayModeBar': False})
             
         with row1_col2:
             st.markdown('<div class="news-title">📰 최근 관련 뉴스</div>', unsafe_allow_html=True)
@@ -343,7 +343,7 @@ if tickers_input:
                 else:
                     st.warning("⚠️ 이 종목은 잦은 매매로 수수료만 날렸습니다. **이런 우직한 종목은 차트 보지 말고 그냥 장기투자하는 게 답이네요!**")
 
-                st.plotly_chart(bt_result['fig'], use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(bt_result['fig'], width='stretch', config={'displayModeBar': False})
             else:
                 st.error("데이터 부족으로 백테스트를 진행할 수 없습니다. 상장된 지 5년 미만이거나 거래 정지 종목일 수 있습니다.")
                 
