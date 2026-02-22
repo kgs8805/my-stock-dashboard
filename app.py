@@ -72,6 +72,78 @@ def get_news(query, num=3):
     except:
         return []
 
+@st.cache_data(ttl=600)
+def run_backtest(ticker_symbol):
+    try:
+        # 백테스트를 위해 좀 더 긴 기간(5년) 데이터 로드
+        ticker = yf.Ticker(ticker_symbol)
+        df = ticker.history(period="5y")
+        if df.empty: return None
+
+        # 1. 이동평균선 계산
+        df['MA20'] = df['Close'].rolling(window=20).mean()
+        df['MA60'] = df['Close'].rolling(window=60).mean()
+
+        # 2. 투자 시그널 생성 (20일선이 60일선 위에 있으면 매수 상태(1), 아니면 현금(0))
+        df['Signal'] = 0
+        df.loc[df['MA20'] > df['MA60'], 'Signal'] = 1
+        
+        # 다음 날 수익률을 시그널에 곱함 (오늘 종가에 확인하고 내일 시가에 매매한다고 가정하는 단순 모델)
+        df['Daily_Return'] = df['Close'].pct_change()
+        df['Strategy_Return'] = df['Signal'].shift(1) * df['Daily_Return']
+
+        # 3. 누적 수익률 계산
+        df['Buy_Hold_Cumulative'] = (1 + df['Daily_Return']).cumprod() - 1
+        df['Strategy_Cumulative'] = (1 + df['Strategy_Return']).cumprod() - 1
+
+        # 결과 추출
+        total_buy_hold_rtn = df['Buy_Hold_Cumulative'].iloc[-1] * 100
+        total_strategy_rtn = df['Strategy_Cumulative'].iloc[-1] * 100
+        
+        # 승률 계산 (시그널이 유지되는 구간별로 수익이 났는지 체크)
+        trades = []
+        in_trade = False
+        entry_price = 0
+        for i in range(1, len(df)):
+            if df['Signal'].iloc[i] == 1 and df['Signal'].iloc[i-1] == 0:
+                in_trade = True
+                entry_price = df['Close'].iloc[i]
+            elif df['Signal'].iloc[i] == 0 and df['Signal'].iloc[i-1] == 1 and in_trade:
+                in_trade = False
+                exit_price = df['Close'].iloc[i]
+                trades.append((exit_price - entry_price) / entry_price)
+                
+        win_rate = 0
+        if trades:
+            wins = sum(1 for t in trades if t > 0)
+            win_rate = (wins / len(trades)) * 100
+
+        # 백테스트 차트 그리기
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df.index, y=df['Buy_Hold_Cumulative']*100, mode='lines', name='그냥 존버 시', line=dict(color='#94a3b8', width=2)))
+        fig.add_trace(go.Scatter(x=df.index, y=df['Strategy_Cumulative']*100, mode='lines', name='골든크로스 전략 시', line=dict(color='#fbbf24', width=3)))
+        
+        fig.update_layout(
+            title="최근 5년 백테스트 누적 수익률 비교",
+            xaxis_title="날짜",
+            yaxis_title="누적 수익률 (%)",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified",
+            height=300,
+            margin=dict(l=0, r=0, t=40, b=0)
+        )
+        
+        return {
+            'buy_hold_rtn': total_buy_hold_rtn,
+            'strategy_rtn': total_strategy_rtn,
+            'win_rate': win_rate,
+            'trade_count': len(trades),
+            'fig': fig
+        }
+    except Exception as e:
+        return None
+
 @st.cache_data(ttl=600) # 10분마다 시장 데이터 갱신
 def get_market_data():
     try:
@@ -236,6 +308,44 @@ if tickers_input:
                     st.markdown(f"- <a class='news-link' href='{link}' target='_blank'>{title}</a>", unsafe_allow_html=True)
             else:
                 st.markdown("<span style='color: #94a3b8;'>최근 관련 뉴스가 없습니다.</span>", unsafe_allow_html=True)
+                
+        # --- 백테스트 결과 노출 영역 ---
+        st.markdown("---")
+        with st.expander(f"⚙️ [{stock_name}] 5년 백테스트 시뮬레이션 돌려보기 (20일선 vs 60일선 교차 전략)", expanded=False):
+            st.markdown("""
+            **이동평균선 교차 전략이란?**
+            * 초보자도 쉽게 따라하는 가장 고전적인 기법입니다.
+            * **매수:** 최근 20일간의 주가 흐름(단기)이 60일간의 흐름(장기)을 뚫고 **상승**할 때.
+            * **매도:** 반대로 20일선이 60일선을 뚫고 **하락**할 때 즉시 팔고 현금화.
+            """)
+            
+            with st.spinner("AI가 지난 5년(약 1,200일) 치 데이터를 불러와 가상 매매를 시뮬레이션 중입니다..."):
+                bt_result = run_backtest(final_ticker)
+                
+            if bt_result:
+                b_rtn = bt_result['buy_hold_rtn']
+                s_rtn = bt_result['strategy_rtn']
+                w_rate = bt_result['win_rate']
+                trades = bt_result['trade_count']
+                
+                b_color = "profit" if b_rtn > 0 else "loss"
+                s_color = "profit" if s_rtn > 0 else "loss"
+                
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("전략 사용 시 총수익률", f"{s_rtn:.1f}%")
+                col2.metric("그냥 존버 시 총수익률", f"{b_rtn:.1f}%")
+                col3.metric("승률 (이익/손절 빈도)", f"{w_rate:.1f}%")
+                col4.metric("5년간 총 매매 횟수", f"{trades}회")
+                
+                # 결과 해석 한줄평
+                if s_rtn > b_rtn:
+                    st.success("🎉 이 종목은 그냥 가만히 들고 있는 것보다 **타이밍(골든크로스)을 맞춰서 사고파는 편이 훨씬 돈을 많이 벌었습니다!**")
+                else:
+                    st.warning("⚠️ 이 종목은 잦은 매매로 수수료만 날렸습니다. **이런 우직한 종목은 차트 보지 말고 그냥 장기투자하는 게 답이네요!**")
+
+                st.plotly_chart(bt_result['fig'], use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.error("데이터 부족으로 백테스트를 진행할 수 없습니다. 상장된 지 5년 미만이거나 거래 정지 종목일 수 있습니다.")
                 
         st.markdown('</div>', unsafe_allow_html=True)
 
