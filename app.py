@@ -172,6 +172,9 @@ def get_stock_data(ticker_symbol):
 
 def draw_candlestick(hist_df):
     recent_hist = hist_df.tail(20) # 최근 20일 캔들
+    # 날짜를 문자열로 변환하여 주말/휴일에 빈 공간이 생기지 않도록 함 (Category 타입으로 인식시킴)
+    recent_hist.index = recent_hist.index.strftime('%Y-%m-%d')
+    
     fig = go.Figure(data=[go.Candlestick(x=recent_hist.index,
                 open=recent_hist['Open'],
                 high=recent_hist['High'],
@@ -184,7 +187,13 @@ def draw_candlestick(hist_df):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis_rangeslider_visible=False,
-        xaxis=dict(showgrid=False, showticklabels=True),
+        xaxis=dict(
+            type='category', # Category 타입으로 지정하여 균일한 간격 유지
+            showgrid=False, 
+            showticklabels=True,
+            tickmode='auto',
+            nticks=5 # 라벨이 너무 겹치지 않게 개수 조절
+        ),
         yaxis=dict(showgrid=False, showticklabels=False)
     )
     return fig
