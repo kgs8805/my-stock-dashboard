@@ -345,7 +345,7 @@ if tickers_input:
         with row1_col1:
             st.markdown(f"### {stock_name} <span style='font-size: 1rem; color: #94a3b8;'>({req_code})</span>", unsafe_allow_html=True)
             st.markdown(f"## <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span>", unsafe_allow_html=True)
-            st.markdown(f"<div style='background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; color: #e2e8f0; font-size: 0.95rem; display:inline-block; border-left: 4px solid #3b82f6;'><div style='color:#60a5fa; font-weight:bold; margin-bottom:5px;'>🤖 AI 이평선 진단:</div>{trend_msg}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; color: #ffffff; font-size: 0.95rem; display:inline-block; border-left: 4px solid #3b82f6;'><div style='color:#60a5fa; font-weight:bold; margin-bottom:5px;'>🤖 AI 이평선 진단:</div>{trend_msg}</div>", unsafe_allow_html=True)
             
             # 미니 차트 삽입
             st.plotly_chart(draw_candlestick(hist), width='stretch', config={'displayModeBar': False})
