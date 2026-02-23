@@ -51,6 +51,21 @@ st.markdown("""
 
 
 # --- 헬퍼 함수 ---
+@st.cache_data(ttl=86400) # 하루에 한번만 갱신
+def get_stock_dict():
+    try:
+        import FinanceDataReader as fdr
+    except ImportError:
+        import os
+        os.system("pip install finance-datareader")
+        import FinanceDataReader as fdr
+    
+    try:
+        df = fdr.StockListing('KRX')
+        return dict(zip(df['Name'], df['Code']))
+    except:
+        return {}
+
 @st.cache_data(ttl=3600)  # 1시간 캐싱 (서버 부하 방지 및 속도 향상)
 def get_news(query, num=3):
     try:
@@ -209,8 +224,8 @@ st.markdown("매일 장 마감 후 시장 요약과 내 관심 종목을 한눈�
 # 1. 사이드바 (사용자 입력)
 with st.sidebar:
     st.header("🔍 분석할 종목 입력")
-    st.markdown("관심 있는 종목 코드를 쉼표(,)로 구분하여 입력하세요.")
-    tickers_input = st.text_input("종목 코드 (예: 005930, 035420)", "005930, 035420")
+    st.markdown("관심 있는 종목명이나 코드를 쉼표(,)로 구분하여 입력하세요.")
+    tickers_input = st.text_input("종목명/코드 (예: 삼성전자, 035420)", "삼성전자, 035420")
     
     st.markdown("---")
     st.markdown("💡 **Tip:** 이 주소를 즐겨찾기 해두시면 매번 앱 설치 없이 모바일에서도 실시간 조회가 가능합니다.")
@@ -261,9 +276,16 @@ if tickers_input:
     # 쉼표로 분리 후 공백 제거
     ticker_list = [t.strip() for t in tickers_input.split(',')]
     
+    # 종목명 <-> 코드 매핑 딕셔너리 가져오기
+    stock_mapping = get_stock_dict()
+    
     for req_code in ticker_list:
         if not req_code: continue
         
+        # 사용자가 종목명(예: "삼성전자")을 입력한 경우 코드로 변환
+        if req_code in stock_mapping:
+            req_code = stock_mapping[req_code]
+            
         # .KS 나 .KQ 가 없으면 기본적으로 .KS 붙여서 검색
         search_ticker = req_code
         if not search_ticker.endswith(".KS") and not search_ticker.endswith(".KQ"):
@@ -283,6 +305,12 @@ if tickers_input:
             stock_name = info.get('shortName', req_code)
         except:
             stock_name = req_code
+            
+        # FinanceDataReader 매핑을 통해 한국어 이름으로 확실히 설정 (Yahoo Finance의 영문명 방지)
+        reverse_mapping = {v: k for k, v in stock_mapping.items()}
+        clean_code = search_ticker.replace('.KS', '').replace('.KQ', '')
+        if clean_code in reverse_mapping:
+            stock_name = reverse_mapping[clean_code]
             
         # 가격 및 등락 파악
         current_price = float(hist['Close'].iloc[-1])
