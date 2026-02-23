@@ -176,16 +176,36 @@ def get_stock_data(ticker_symbol):
         return None, ticker_symbol
 
 def draw_candlestick(hist_df):
+    # 이동평균선 계산 (전체 데이터 기준)
+    hist_df = hist_df.copy()
+    hist_df['MA20'] = hist_df['Close'].rolling(window=20).mean()
+    hist_df['MA60'] = hist_df['Close'].rolling(window=60).mean()
+    
     recent_hist = hist_df.tail(20) # 최근 20일 캔들
     # 날짜를 문자열로 변환하여 주말/휴일에 빈 공간이 생기지 않도록 함 (Category 타입으로 인식시킴)
     recent_hist.index = recent_hist.index.strftime('%Y-%m-%d')
     
-    fig = go.Figure(data=[go.Candlestick(x=recent_hist.index,
+    fig = go.Figure()
+    
+    # 캔들 차트 추가
+    fig.add_trace(go.Candlestick(x=recent_hist.index,
                 open=recent_hist['Open'],
                 high=recent_hist['High'],
                 low=recent_hist['Low'],
                 close=recent_hist['Close'],
-                increasing_line_color='#ef4444', decreasing_line_color='#3b82f6')])
+                increasing_line_color='#ef4444', decreasing_line_color='#3b82f6',
+                name='캔들'))
+                
+    # 20일 이동평균선 추가
+    fig.add_trace(go.Scatter(x=recent_hist.index, y=recent_hist['MA20'], 
+                             mode='lines', name='20일선', 
+                             line=dict(color='#fbbf24', width=1.5)))
+                             
+    # 60일 이동평균선 추가
+    fig.add_trace(go.Scatter(x=recent_hist.index, y=recent_hist['MA60'], 
+                             mode='lines', name='60일선', 
+                             line=dict(color='#c084fc', width=1.5)))
+
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
         height=150,
