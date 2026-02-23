@@ -62,7 +62,14 @@ def get_stock_dict():
     
     try:
         df = fdr.StockListing('KRX')
-        return dict(zip(df['Name'], df['Code']))
+        # 종목명에서 띄어쓰기를 전부 제거하고 대문자로 변환하여 매핑 딕셔너리 생성
+        mapping = {}
+        for name, code in zip(df['Name'], df['Code']):
+            clean_name = str(name).replace(" ", "").upper()
+            mapping[clean_name] = code
+            # 원본 이름도 매핑에 추가 (원본 이름으로 검색할 수도 있으므로)
+            mapping[str(name)] = code
+        return mapping
     except:
         return {}
 
@@ -273,18 +280,24 @@ st.subheader("📋 관심 종목 실시간 진단")
 
 # 3. 개별 종목 분석 루프
 if tickers_input:
-    # 쉼표로 분리 후 공백 제거
+    # 쉼표로 분리 후 앞뒤 공백 제거
     ticker_list = [t.strip() for t in tickers_input.split(',')]
     
     # 종목명 <-> 코드 매핑 딕셔너리 가져오기
     stock_mapping = get_stock_dict()
     
-    for req_code in ticker_list:
-        if not req_code: continue
+    for raw_req_code in ticker_list:
+        if not raw_req_code: continue
+        
+        # 사용자가 입력한 종목명 중간의 띄어쓰기까지 제거하여 검색 준비 (예: '미래에셋 증권' -> '미래에셋증권')
+        req_code = raw_req_code.replace(" ", "").upper()
         
         # 사용자가 종목명(예: "삼성전자")을 입력한 경우 코드로 변환
         if req_code in stock_mapping:
             req_code = stock_mapping[req_code]
+        # 혹시 기존 띄어쓰기 있는 형태가 매핑에 있을 경우를 대비해 원본도 확인
+        elif raw_req_code in stock_mapping:
+            req_code = stock_mapping[raw_req_code]
             
         # .KS 나 .KQ 가 없으면 기본적으로 .KS 붙여서 검색
         search_ticker = req_code
@@ -294,7 +307,7 @@ if tickers_input:
         hist, final_ticker = get_stock_data(search_ticker)
         
         if hist is None or hist.empty:
-            st.error(f"[{req_code}] 종목 데이터를 찾을 수 없습니다.")
+            st.error(f"[{raw_req_code}] 종목 데이터를 찾을 수 없습니다. YFinance({search_ticker})에서 조회되지 않습니다.")
             continue
             
         ticker_info = yf.Ticker(final_ticker)
@@ -302,9 +315,9 @@ if tickers_input:
         # 종목명 가져오기 (종목 정보에서 못 가져오면 코드로 대체)
         try:
             info = ticker_info.info
-            stock_name = info.get('shortName', req_code)
+            stock_name = info.get('shortName', raw_req_code)
         except:
-            stock_name = req_code
+            stock_name = raw_req_code
             
         # FinanceDataReader 매핑을 통해 한국어 이름으로 확실히 설정 (Yahoo Finance의 영문명 방지)
         reverse_mapping = {v: k for k, v in stock_mapping.items()}
