@@ -315,12 +315,28 @@ if tickers_input:
         color_class = "profit" if return_pct > 0 else "loss"
         sign = "+" if return_pct > 0 else ""
         
-        # 간단 기술적 진단 (단기 이평선 기준)
-        ma20 = hist['Close'].rolling(window=20).mean().iloc[-1]
-        if current_price >= ma20:
-            trend_msg = "생명선(20일선) 돌파! 추세 양호 🚀"
-        else:
-            trend_msg = "20일선 밑으로 무너짐. 단기 관망 보수적 접근 필요 ⚠️"
+        # 간단 기술적 진단 (이평선 기준)
+        try:
+            ma20 = hist['Close'].rolling(window=20).mean().iloc[-1]
+            ma60 = hist['Close'].rolling(window=60).mean().iloc[-1]
+            
+            # MA 분석 로직
+            if pd.isna(ma60): # 60일선 데이터가 부족한 경우 20일선만 분석
+                if current_price >= ma20:
+                    trend_msg = "단기 강세 (20일선 위) 상장된 지 얼마 안 된 종목이거나 데이터가 부족합니다."
+                else:
+                    trend_msg = "단기 약세 (20일선 무너짐) 데이터가 충분치 않습니다."
+            else:
+                if current_price >= ma20 and ma20 >= ma60:
+                    trend_msg = "🟢 **완벽한 정배열 상승추세!** (현재가 > 20일선 > 60일선)<br>단기/중기 모두 매수세가 강해 긍정적입니다. 계속 오르는 배에 올라탈 만합니다 🚀"
+                elif current_price < ma20 and current_price >= ma60:
+                    trend_msg = "🟡 **단기 조정 중** (60일선 지지 테스트)<br>최근 살짝 떨어졌지만(20일선 하회), 아직 중장기 추세(60일선)는 살아있습니다. 여기서 버텨주면 좋은 매수 찬스입니다 ⚖️"
+                elif current_price >= ma20 and current_price < ma60:
+                    trend_msg = "🟠 **단기 반등 시도** (60일선 저항 테스트)<br>오랜 하락 끝에 고개를 들고 있습니다(20일선 돌파). 하지만 위에 있는 60일선(중장기 매물대)을 뚫을 수 있을지가 관건입니다 🧗"
+                else:
+                    trend_msg = "🔴 **완전한 역배열 하락추세** (현재가 < 20일선 < 60일선)<br>파는 사람이 너무 많습니다. 바닥이 확인될 때까지 신규 매수는 신중히 관망하는 것이 좋습니다 ⚠️"
+        except:
+             trend_msg = "단기 관망 보수적 접근 필요 ⚠️ (데이터 집계 지연)"
 
         # 화면 분할 (1.카드 정보, 2.뉴스)
         st.markdown(f'<div class="stock-card">', unsafe_allow_html=True)
@@ -329,7 +345,7 @@ if tickers_input:
         with row1_col1:
             st.markdown(f"### {stock_name} <span style='font-size: 1rem; color: #94a3b8;'>({req_code})</span>", unsafe_allow_html=True)
             st.markdown(f"## <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span>", unsafe_allow_html=True)
-            st.markdown(f"<div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; color: #cbd5e1; font-size: 0.95rem; display:inline-block;'><b>🤖 AI 단기 진단:</b> {trend_msg}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; color: #e2e8f0; font-size: 0.95rem; display:inline-block; border-left: 4px solid #3b82f6;'><div style='color:#60a5fa; font-weight:bold; margin-bottom:5px;'>🤖 AI 이평선 진단:</div>{trend_msg}</div>", unsafe_allow_html=True)
             
             # 미니 차트 삽입
             st.plotly_chart(draw_candlestick(hist), width='stretch', config={'displayModeBar': False})
