@@ -272,7 +272,7 @@ for s in my_stocks:
     invest_amount = s['buy_price'] * s['qty']
     
     # 팔 때 떼이는 세금+증권사수수료(약 0.195%)만 현재가치에서 빼줍니다.
-    current_amount = (active_price * s['qty']) * (1 - 0.001156)
+    current_amount = (active_price * s['qty']) * (1 - 0.001161)
     
     total_invest += invest_amount
     total_value += current_amount
