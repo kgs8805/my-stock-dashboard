@@ -260,7 +260,7 @@ for s in my_stocks:
         hist = ticker.history(period="6mo")
         
     if hist.empty:
-        stock_widgets.append((s, None, None, None, None, None))
+        stock_widgets.append((s, None, None, None, None, None, None))
         continue
         
     today_str = now_kst.strftime('%Y-%m-%d')
@@ -285,7 +285,7 @@ for s in my_stocks:
     total_invest += invest_amount
     total_value += current_amount
     
-    stock_widgets.append((s, hist, prev_price, current_price, nxt_data, current_amount))
+    stock_widgets.append((s, hist, prev_price, current_price, nxt_data, current_amount, invest_amount))
 
 # 3. 총 계좌 요약 대시보드 (맨 위 배치)
 unrealized_amt = total_value - total_invest
@@ -332,7 +332,7 @@ with col2:
 st.markdown("<br><br>", unsafe_allow_html=True)
 
 # 4. 개별 종목 카드 출력
-for s, hist, prev_price, current_price, nxt_data, current_amount in stock_widgets:
+for s, hist, prev_price, current_price, nxt_data, current_amount, invest_amount in stock_widgets:
     if hist is None:
         st.error(f"[{s['name']}] 데이터를 찾을 수 없습니다.")
         continue
