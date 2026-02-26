@@ -267,11 +267,11 @@ for s in my_stocks:
     active_price = current_price
     if nxt_data and nxt_data['price'] != current_price:
         active_price = nxt_data['price'] # 포트폴리오 가치 계산은 최신가(NXT) 반영
-        
-    # 세금 및 수수료 반영 (매도 시 증권거래세 0.18%, 기본적인 증권사 수수료 0.015% 가정 = 총 약 0.195%)
-    # 살 때도 수수료(0.015%)가 들었으므로 매수 원금에 합산
-    invest_amount = (s['buy_price'] * s['qty']) * 1.00015
-    # 팔 때는 세금+수수료(0.195%)를 제함
+        # MTS앱에 표시되는 '평단가'에는 이미 매수 수수료가 녹아있는 경우가 대부분입니다.
+    # 따라서 매수 원금은 순수하게 (평단가 * 수량)으로 잡습니다.
+    invest_amount = s['buy_price'] * s['qty']
+    
+    # 팔 때 떼이는 세금+증권사수수료(약 0.195%)만 현재가치에서 빼줍니다.
     current_amount = (active_price * s['qty']) * (1 - 0.00195)
     
     total_invest += invest_amount
