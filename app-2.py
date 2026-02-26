@@ -18,9 +18,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- KIS OpenAPI 인증 키 ---
-APP_KEY = "PSSpT74p43VgT6Rn24Y4NlqAg8m8eF6vmBzD"
-APP_SECRET = "ZiNUtohv5bzjidzP54uZ+GH3/jZ8U9+SU2SJr4g9uLLOocmdNFEGvjQ3iWqxLqTsdoZOUv3ZZx2Aj1fl9Oez54DapzbHh9+FAGn15rF6MV9R5iiYO8qnDxq4gjuRGGToaB3Ewqv46McrV9MLc10q2PonKNwOAyjsxbKUvtWIL5NMIlXcR3o="
+# --- KIS OpenAPI 인증 키 (보안 적용) ---
+try:
+    # Streamlit Cloud의 Secrets(비밀 금고)에 저장된 값을 우선적으로 가져옵니다.
+    APP_KEY = st.secrets["KIS_APP_KEY"]
+    APP_SECRET = st.secrets["KIS_APP_SECRET"]
+except FileNotFoundError:
+    # (주의) 만약 Secrets 설정 전이거나 로컬 테스트 중이라면, 임시로 예전 키를 씁니다.
+    # 하지만 깃허브가 'Public(공개)' 상태라면, 해커가 이 키를 훔쳐 쓸 수 있으므로 매우 위험합니다!!
+    # 가급적 빨리 이 아래 두 줄을 지우고 st.secrets만 쓰도록 하시는 것이 좋습니다.
+    APP_KEY = "PSSpT74p43VgT6Rn24Y4NlqAg8m8eF6vmBzD"
+    APP_SECRET = "ZiNUtohv5bzjidzP54uZ+GH3/jZ8U9+SU2SJr4g9uLLOocmdNFEGvjQ3iWqxLqTsdoZOUv3ZZx2Aj1fl9Oez54DapzbHh9+FAGn15rF6MV9R5iiYO8qnDxq4gjuRGGToaB3Ewqv46McrV9MLc10q2PonKNwOAyjsxbKUvtWIL5NMIlXcR3o="
 
 @st.cache_data(ttl=24*3600)
 def get_kis_token():
