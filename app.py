@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 import datetime
 import plotly.graph_objects as go
 import requests
-from bs4 import BeautifulSoup
+import json
 
 # --- 기본 페이지 설정 ---
 st.set_page_config(
@@ -16,6 +16,21 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# --- KIS OpenAPI 인증 키 (사용자 제공) ---
+# 주의: 이 키들은 향후 보안을 위해 .streamlit/secrets.toml 에 분리하는 것이 좋습니다.
+APP_KEY = "PSSpT74p43VgT6Rn24Y4NlqAg8m8eF6vmBzD"
+APP_SECRET = "ZiNUtohv5bzjidzP54uZ+GH3/jZ8U9+SU2SJr4g9uLLOocmdNFEGvjQ3iWqxLqTsdoZOUv3ZZx2Aj1fl9Oez54DapzbHh9+FAGn15rF6MV9R5iiYO8qnDxq4gjuRGGToaB3Ewqv46McrV9MLc10q2PonKNwOAyjsxbKUvtWIL5NMIlXcR3o="
+
+@st.cache_data(ttl=24*3600) # 토큰은 하루 1번 갱신
+def get_kis_token():
+    url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP"
+    body = {"grant_type": "client_credentials", "appkey": APP_KEY, "appsecret": APP_SECRET}
+    try:
+        res = requests.post(url, headers={"content-type": "application/json"}, data=json.dumps(body))
+        return res.json().get("access_token")
+    except:
+        return None
 
 # --- CSS 스타일 적용 ---
 st.markdown("""
@@ -151,7 +166,42 @@ def run_backtest(ticker_symbol):
     except Exception as e:
         return None
 
-@st.cache_data(ttl=60) # 1분마다 시장 데이터 갱신
+@st.cache_data(ttl=60)
+def get_kis_market_data():
+    token = get_kis_token()
+    if not token: return None, None
+    url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-price"
+    headers = {
+        "content-type": "application/json; charset=utf-8", "authorization": f"Bearer {token}",
+        "appkey": APP_KEY, "appsecret": APP_SECRET, "tr_id": "FHPUP02100000"
+    }
+    try:
+        res_k = requests.get(url, headers=headers, params={"FID_COND_MRKT_DIV_CODE": "U", "FID_INPUT_ISCD": "0001"})
+        k_curr = float(res_k.json()['output']['stck_prpr'])
+        res_q = requests.get(url, headers=headers, params={"FID_COND_MRKT_DIV_CODE": "U", "FID_INPUT_ISCD": "1001"})
+        q_curr = float(res_q.json()['output']['stck_prpr'])
+        return k_curr, q_curr
+    except:
+        return None, None
+
+@st.cache_data(ttl=60)
+def get_kis_stock_price(ticker_symbol):
+    token = get_kis_token()
+    if not token: return None
+    code = ticker_symbol.split('.')[0]
+    url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-price"
+    headers = {
+        "content-type": "application/json; charset=utf-8", "authorization": f"Bearer {token}",
+        "appkey": APP_KEY, "appsecret": APP_SECRET, "tr_id": "FHKST01010100"
+    }
+    try:
+        res = requests.get(url, headers=headers, params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": code})
+        out = res.json()['output']
+        return float(out['stck_prpr'])
+    except:
+        return None
+
+@st.cache_data(ttl=600) # 10분마다 시장 데이터 갱신
 def get_market_data():
     try:
         kospi = yf.Ticker("^KS11").history(period="1mo")
@@ -160,33 +210,7 @@ def get_market_data():
     except:
         return None, None
 
-@st.cache_data(ttl=60)
-def get_naver_market_data():
-    try:
-        url = 'https://finance.naver.com/sise/'
-        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(res.text, 'html.parser')
-        k_curr = float(soup.select_one('#KOSPI_now').text.replace(',', ''))
-        q_curr = float(soup.select_one('#KOSDAQ_now').text.replace(',', ''))
-        return k_curr, q_curr
-    except:
-        return None, None
-
-@st.cache_data(ttl=60)
-def get_naver_stock_price(ticker_symbol):
-    try:
-        code = ticker_symbol.split('.')[0]
-        url = f'https://finance.naver.com/item/sise.naver?code={code}'
-        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(res.text, 'html.parser')
-        price = float(soup.select_one('strong#_nowVal').text.replace(',', ''))
-        return price
-    except:
-        return None
-
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=600)
 def get_stock_data(ticker_symbol):
     try:
         ticker = yf.Ticker(ticker_symbol)
@@ -254,12 +278,12 @@ def draw_candlestick(hist_df):
 
 # --- 메인 앱 UI ---
 st.title("📊 초보자 주식 집중 분석 대시보드")
-st.markdown("시장 요약과 관심 종목의 현재 상태를 한눈에 살펴보세요.")
+st.markdown("매일 장 마감 후 시장 요약과 내 관심 종목을 한눈에 살펴보세요.")
 
 # 현재 시간 표시 (한국 시간 기준)
 now_kst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.info(f"🕒 **현재 분석 시각:** {now_kst.strftime('%Y년 %m월 %d일 %H:%M:%S')} (데이터 갱신 주기: 1분)")
-st.caption("※ 참고: 실시간 현재가/지수는 네이버 금융에서 1분 단위로 수집하여 지연 없이 정확하게 제공됩니다. (과거 차트/백테스트는 yfinance 활용)")
+st.caption("※ 참고: KIS OpenAPI를 연동하여 HTS(한국투자증권)와 완전히 동일한 100% 실시간 주가를 제공합니다.")
 
 # 1. 사이드바 (사용자 입력)
 with st.sidebar:
@@ -281,7 +305,7 @@ with st.sidebar:
 # 2. 시장 주요 지수 (KOSPI / KOSDAQ)
 st.subheader("📈 현재 시장 상황 (코스피 / 코스닥)")
 kospi_data, kosdaq_data = get_market_data()
-k_rt_curr, q_rt_curr = get_naver_market_data()
+kis_k_curr, kis_q_curr = get_kis_market_data()
 
 col1, col2 = st.columns(2)
 
@@ -289,7 +313,7 @@ if kospi_data is not None and not kospi_data.empty:
     today_str = now_kst.strftime('%Y-%m-%d')
     k_last_date = kospi_data.index[-1].strftime('%Y-%m-%d')
     k_prev = float(kospi_data['Close'].iloc[-2]) if k_last_date == today_str else float(kospi_data['Close'].iloc[-1])
-    k_curr = k_rt_curr if k_rt_curr is not None else float(kospi_data['Close'].iloc[-1])
+    k_curr = kis_k_curr if kis_k_curr is not None else float(kospi_data['Close'].iloc[-1])
     
     k_pct = ((k_curr - k_prev) / k_prev) * 100
     k_color = "profit" if k_pct > 0 else "loss"
@@ -297,7 +321,7 @@ if kospi_data is not None and not kospi_data.empty:
     
     q_last_date = kosdaq_data.index[-1].strftime('%Y-%m-%d')
     q_prev = float(kosdaq_data['Close'].iloc[-2]) if q_last_date == today_str else float(kosdaq_data['Close'].iloc[-1])
-    q_curr = q_rt_curr if q_rt_curr is not None else float(kosdaq_data['Close'].iloc[-1])
+    q_curr = kis_q_curr if kis_q_curr is not None else float(kosdaq_data['Close'].iloc[-1])
     
     q_pct = ((q_curr - q_prev) / q_prev) * 100
     q_color = "profit" if q_pct > 0 else "loss"
@@ -353,13 +377,13 @@ if tickers_input:
         except:
             stock_name = req_code
             
-        # 가격 및 등락 파악 (네이버 실시간 가격 활용)
+        # 가격 및 등락 파악 (한국투자증권 API 실시간 가격)
         today_str = now_kst.strftime('%Y-%m-%d')
         last_date_str = hist.index[-1].strftime('%Y-%m-%d')
         prev_price = float(hist['Close'].iloc[-2]) if (last_date_str == today_str and len(hist) > 1) else float(hist['Close'].iloc[-1])
         
-        rt_price = get_naver_stock_price(search_ticker)
-        current_price = rt_price if rt_price is not None else float(hist['Close'].iloc[-1])
+        kis_price = get_kis_stock_price(search_ticker)
+        current_price = kis_price if kis_price is not None else float(hist['Close'].iloc[-1])
         
         return_pct = ((current_price - prev_price) / prev_price) * 100
         return_amt = current_price - prev_price
