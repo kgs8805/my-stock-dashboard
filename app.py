@@ -201,6 +201,26 @@ def get_kis_stock_price(ticker_symbol):
     except:
         return None
 
+@st.cache_data(ttl=60)
+def get_nxt_stock_price(ticker_symbol):
+    try:
+        code = ticker_symbol.split('.')[0]
+        url = f'https://polling.finance.naver.com/api/realtime/domestic/stock/{code}'
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        info = res.json()['datas'][0]
+        nxt_info = info.get('overMarketPriceInfo')
+        if nxt_info and nxt_info.get('overPrice'):
+            price = float(nxt_info['overPrice'].replace(',', ''))
+            diff = float(nxt_info['compareToPreviousClosePrice'].replace(',', ''))
+            sign = nxt_info['compareToPreviousPrice']['code']
+            if sign == '5': diff = -diff # 하락
+            elif sign == '3': diff = 0   # 보합
+            ratio = float(nxt_info['fluctuationsRatio'])
+            return {'price': price, 'diff': diff, 'ratio': ratio}
+        return None
+    except:
+        return None
+
 @st.cache_data(ttl=600) # 10분마다 시장 데이터 갱신
 def get_market_data():
     try:
@@ -283,7 +303,7 @@ st.markdown("매일 장 마감 후 시장 요약과 내 관심 종목을 한눈�
 # 현재 시간 표시 (한국 시간 기준)
 now_kst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.info(f"🕒 **현재 분석 시각:** {now_kst.strftime('%Y년 %m월 %d일 %H:%M:%S')} (데이터 갱신 주기: 1분)")
-st.caption("※ 참고: KIS OpenAPI를 연동하여 HTS(한국투자증권)와 완전히 동일한 100% 실시간 주가를 제공합니다.")
+st.caption("※ 참고: KIS OpenAPI를 연동하여 HTS(한국투자증권)와 완전히 동일한 100% 실시간 주가를 제공합니다. 시간외단일가(NXT 등)가 존재할 경우 함께 표시됩니다.")
 
 # 1. 사이드바 (사용자 입력)
 with st.sidebar:
@@ -377,7 +397,7 @@ if tickers_input:
         except:
             stock_name = req_code
             
-        # 가격 및 등락 파악 (한국투자증권 API 실시간 가격)
+        # 가격 및 등락 파악 (한국투자증권 API 정규장 가격)
         today_str = now_kst.strftime('%Y-%m-%d')
         last_date_str = hist.index[-1].strftime('%Y-%m-%d')
         prev_price = float(hist['Close'].iloc[-2]) if (last_date_str == today_str and len(hist) > 1) else float(hist['Close'].iloc[-1])
@@ -390,6 +410,9 @@ if tickers_input:
         
         color_class = "profit" if return_pct > 0 else "loss"
         sign = "+" if return_pct > 0 else ""
+        
+        # 시간외단일가(NXT) 정보 파악
+        nxt_data = get_nxt_stock_price(search_ticker)
         
         # 간단 기술적 진단 (이평선 기준)
         try:
@@ -420,7 +443,25 @@ if tickers_input:
         
         with row1_col1:
             st.markdown(f"### {stock_name} <span style='font-size: 1rem; color: #94a3b8;'>({req_code})</span>", unsafe_allow_html=True)
-            st.markdown(f"## <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span>", unsafe_allow_html=True)
+            
+            # NXT(시간외단일가)가 존재할 경우 표시 권역 교체 (NXT 최우선 노출)
+            if nxt_data and nxt_data['price'] != current_price:
+                 nxt_price = nxt_data['price']
+                 nxt_diff = nxt_data['diff']
+                 nxt_ratio = nxt_data['ratio']
+                 nxt_color = "profit" if nxt_ratio > 0 else "loss"
+                 nxt_sign = "+" if nxt_ratio > 0 else ""
+                 
+                 # 1. 메인 (큰 시세) 자리에 시간외/NXT 가격 꽂기
+                 st.markdown(f"<div style='margin-bottom: -15px;'><span style='background-color: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: bold;'>시간외/NXT</span></div>", unsafe_allow_html=True)
+                 st.markdown(f"## <span class='{nxt_color}'>{nxt_price:,.0f}원 ({nxt_sign}{nxt_ratio:.2f}%)</span>", unsafe_allow_html=True)
+                 
+                 # 2. 서브 (작은 시세) 자리에 원래 정규장(KRX) 종가 꽂기
+                 st.markdown(f"<div style='color: #94a3b8; margin-bottom: 15px;'>오늘(정규) <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span></div>", unsafe_allow_html=True)
+            else:
+                 # 시간외 가격이 변동이 없거나 장중일 경우 원래대로 표기
+                 st.markdown(f"## <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span>", unsafe_allow_html=True)
+                 
             st.markdown(f"<div style='background-color: #1e293b; border: 1px solid #475569; padding: 15px; border-radius: 8px; color: #f8fafc; font-size: 1rem; line-height: 1.5; display:inline-block; border-left: 5px solid #3b82f6; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);'><div style='color:#60a5fa; font-size: 1.1rem; font-weight:900; margin-bottom:8px;'>🤖 AI 이평선 진단</div>{trend_msg}</div>", unsafe_allow_html=True)
             st.plotly_chart(draw_candlestick(hist), width='stretch', config={'displayModeBar': False})
             
