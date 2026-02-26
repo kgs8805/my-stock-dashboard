@@ -268,8 +268,11 @@ for s in my_stocks:
     if nxt_data and nxt_data['price'] != current_price:
         active_price = nxt_data['price'] # 포트폴리오 가치 계산은 최신가(NXT) 반영
         
-    invest_amount = s['buy_price'] * s['qty']
-    current_amount = active_price * s['qty']
+    # 세금 및 수수료 반영 (매도 시 증권거래세 0.18%, 기본적인 증권사 수수료 0.015% 가정 = 총 약 0.195%)
+    # 살 때도 수수료(0.015%)가 들었으므로 매수 원금에 합산
+    invest_amount = (s['buy_price'] * s['qty']) * 1.00015
+    # 팔 때는 세금+수수료(0.195%)를 제함
+    current_amount = (active_price * s['qty']) * (1 - 0.00195)
     
     total_invest += invest_amount
     total_value += current_amount
@@ -349,22 +352,28 @@ for s, hist, prev_price, current_price, nxt_data, current_amount in stock_widget
              st.markdown(f"## <span class='{nxt_color}'>{nxt_price:,.0f}원 ({nxt_sign}{nxt_ratio:.2f}%)</span>", unsafe_allow_html=True)
              st.markdown(f"<div style='color: #94a3b8; margin-bottom: 15px;'>오늘(정규) <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span></div>", unsafe_allow_html=True)
              
-             my_return_pct = ((nxt_price - s['buy_price']) / s['buy_price']) * 100
+             # 세금/수수료 반영 수익률
+             my_return_amt = current_amount - invest_amount
+             my_return_pct = (my_return_amt / invest_amount) * 100
              my_color = "profit" if my_return_pct > 0 else "loss"
+             
         else:
              st.markdown(f"## <span class='{color_class}'>{current_price:,.0f}원 ({sign}{return_pct:.2f}%)</span>", unsafe_allow_html=True)
              st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
              
-        # 내 포지션 정보 블록
-        invest_amount = s['buy_price'] * s['qty']
+        # 내 포지션 정보 블록 (세금/수수료 반영분)
         my_return_amt = current_amount - invest_amount
+        my_return_pct = (my_return_amt / invest_amount) * 100
+        my_color = "profit" if my_return_pct > 0 else "loss"
+        
         st.markdown(f"""
         <div style='background-color: #0f172a; border: 1px solid #334155; padding: 15px; border-radius: 8px; margin-bottom:15px;'>
             <div style='display:flex; justify-content:space-between; margin-bottom: 5px; font-size:1.1rem;'>
-                <span style='color:#e2e8f0'>평가금액: <b>{current_amount:,.0f}원</b></span>
+                <span style='color:#e2e8f0'>추정 정산금액: <b>{current_amount:,.0f}원</b></span>
                 <span class="{my_color}" style='font-size:1.2rem; font-weight:bold;'>({my_return_pct:+.2f}%) {my_return_amt:+,.0f}원</span>
             </div>
-            <div style='color:#94a3b8; font-size:0.95rem;'>내 평단가: {s['buy_price']:,.0f}원 | 투자수량: {s['qty']}주 (투자원금: {invest_amount:,.0f}원)</div>
+            <div style='color:#94a3b8; font-size:0.95rem;'>내 평단가: {s['buy_price']:,.0f}원 | 투자수량: {s['qty']}주 (투자원금+수수료: {invest_amount:,.0f}원)</div>
+            <div style='color:#64748b; font-size:0.75rem; margin-top:3px;'>※ 제비용(매매수수료 0.015%, 증권거래세 0.18%) 차감 후 순수익 및 정산금 추정치입니다.</div>
         </div>
         """, unsafe_allow_html=True)
              
